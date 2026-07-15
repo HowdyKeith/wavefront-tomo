@@ -4,6 +4,9 @@ Diffraction tomography in plain JavaScript, with an FDTD wave solver that **adju
 
 No native dependencies. No build step. `node test/suite.mjs` and everything below is checked in front of you.
 
+**[→ Live demo](https://howdykeith.github.io/wavefront-tomo/demo/)** — drag the contrast slider and watch the
+approximation fail in real time. The wave is computed in your browser, not replayed.
+
 ```js
 import { bornError, maxPhaseFor, ewaldPoint, maxFrequency } from "wavefront-tomo";
 ```
