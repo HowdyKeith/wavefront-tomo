@@ -1,0 +1,17 @@
+{
+  "name": "wavefront-tomo",
+  "version": "1.0.0",
+  "description": "Diffraction tomography in plain JavaScript, with an FDTD wave solver that adjudicates its own approximation. No native dependencies.",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": { ".": "./src/index.js" },
+  "scripts": {
+    "test": "node test/suite.mjs",
+    "sweep": "node tools/sweep.mjs"
+  },
+  "keywords": ["tomography", "diffraction", "fdtd", "born-approximation", "ewald", "fourier-slice", "radon", "inverse-problems", "computational-imaging"],
+  "license": "MIT",
+  "engines": { "node": ">=18" },
+  "files": ["src", "test", "tools", "demo", "README.md", "LICENSE"],
+  "repository": { "type": "git", "url": "https://github.com/HowdyKeith/wavefront-tomo" }
+}

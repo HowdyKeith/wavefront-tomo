@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>wavefront-tomo &mdash; where the Born approximation dies</title>
+<style>
+  :root { --bg:#05080e; --ink:#cfe3ff; --dim:#5b7699; --hot:#ff9f6a; --ok:#7fe3c4; --warn:#ffd27f; --line:#16304d; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; padding:28px 20px 60px; }
+  .wrap { max-width: 900px; margin: 0 auto; }
+  h1 { font-size:19px; letter-spacing:.09em; text-transform:uppercase; color:var(--warn); margin:0 0 4px; }
+  .sub { color:var(--dim); margin:0 0 26px; }
+  .panel { border:1px solid var(--line); border-radius:12px; padding:18px; margin-bottom:18px; background:rgba(10,20,34,.55); }
+  .panel h2 { font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--dim); margin:0 0 12px; font-weight:600; }
+  canvas { width:100%; height:260px; display:block; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th { text-align:left; color:var(--dim); font-weight:600; padding:5px 8px; border-bottom:1px solid var(--line); font-size:11px; letter-spacing:.06em; text-transform:uppercase; }
+  td { padding:5px 8px; border-bottom:1px solid rgba(22,48,77,.4); }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+  .ok { color:var(--ok); } .warn { color:var(--warn); } .hot { color:var(--hot); }
+  label { color:var(--dim); display:block; margin-bottom:6px; font-size:12px; }
+  input[type=range] { width:100%; accent-color:#ff9f6a; }
+  p { color:var(--dim); }
+  code { color:var(--ink); }
+  .big { font-size:26px; color:var(--ink); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Where the Born approximation dies</h1>
+  <p class="sub">Every tomographic reconstruction assumes the wave is barely disturbed by the object. This asks Maxwell.</p>
+
+  <div class="panel">
+    <h2>The object, and the wave that does not care what you assumed</h2>
+    <canvas id="cv" width="1720" height="520"></canvas>
+    <p style="margin:12px 0 0">A pulse crosses a slab. The dotted trace is the same pulse with no slab. The gap between
+    them is the phase the wave <em>actually</em> accumulated &mdash; measured, not assumed.</p>
+  </div>
+
+  <div class="panel">
+    <h2>Contrast</h2>
+    <label>slab permittivity &mdash; <span id="lbl">1 + 0.05</span></label>
+    <input id="sl" type="range" min="1" max="120" value="25">
+  </div>
+
+  <div class="panel">
+    <h2>The adjudication</h2>
+    <table>
+      <thead><tr><th>quantity</th><th class="num">value</th><th>where it comes from</th></tr></thead>
+      <tbody>
+        <tr><td>phase shift &phi;</td><td class="num" id="phi">&mdash;</td><td>FDTD &mdash; a solver that has never heard of Born</td></tr>
+        <tr><td>Born error, <b>measured</b></td><td class="num hot" id="meas">&mdash;</td><td>|e<sup>i&phi;</sup> &minus; (1 + i&phi;<sub>Born</sub>)|, from the wave</td></tr>
+        <tr><td>Born error, <b>predicted</b></td><td class="num warn" id="pred">&mdash;</td><td>&phi;&sup2;/2, written down beforehand</td></tr>
+        <tr><td>they agree to</td><td class="num" id="agree">&mdash;</td><td>the theory of the failure, tested</td></tr>
+      </tbody>
+    </table>
+    <p style="margin:14px 0 0" id="verdict">&nbsp;</p>
+  </div>
+
+  <div class="panel">
+    <h2>So can you invert this?</h2>
+    <div class="big" id="calls">&mdash;</div>
+    <p style="margin:8px 0 0" id="callsWhy">&nbsp;</p>
+  </div>
+</div>
+
+<script type="module">
+import { createFdtd1d } from "../src/em/fdtd1d.js";
+import { bornSlab } from "../src/em/born.js";
+
+const cv = document.getElementById("cv"), g = cv.getContext("2d");
+const dx = 0.001, cells = 60, ppw = 40, lam = ppw * dx, N = 1200, A = 300, B = A + cells;
+const src = (t) => { const x = (t - 60) / 18; return Math.exp(-x * x); };
+
+// Run one pulse through the grid, keeping the trace at the probe AND the final field for drawing.
+function run(delta) {
+  const eps = new Float64Array(N).fill(1);
+  if (delta > 0) for (let i = A; i < B; i++) eps[i] = 1 + delta;
+  const w = createFdtd1d({ n: N, dx, S: 1.0, eps: delta > 0 ? eps : null });
+  const trace = [];
+  let num = 0, den = 0;
+  for (let s = 0; s < 1500; s++) {
+    w.step(src);
+    const v = w.Ez[900] * w.Ez[900];
+    num += v * w.t; den += v;
+    trace.push(w.Ez[900]);
+  }
+  return { centroid: num / den, trace };
+}
+
+function draw(a, b) {
+  const W = cv.width, H = cv.height;
+  g.clearRect(0, 0, W, H);
+  // the slab
+  g.fillStyle = "rgba(255,159,106,.10)";
+  const x0 = 700 / 1500 * W, x1 = 780 / 1500 * W;
+  g.fillRect(x0, 0, x1 - x0, H);
+  g.strokeStyle = "#16304d"; g.lineWidth = 2;
+  g.beginPath(); g.moveTo(0, H/2); g.lineTo(W, H/2); g.stroke();
+  const plot = (tr, style, dash) => {
+    g.strokeStyle = style; g.lineWidth = dash ? 2 : 3; g.setLineDash(dash ? [7, 7] : []);
+    g.beginPath();
+    let mx = 1e-9; for (const v of tr) mx = Math.max(mx, Math.abs(v));
+    for (let i = 0; i < tr.length; i++) {
+      const x = i / tr.length * W, y = H/2 - (tr[i] / mx) * (H * 0.40);
+      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.stroke(); g.setLineDash([]);
+  };
+  plot(b.trace, "rgba(127,227,196,.55)", true);   // vacuum reference
+  plot(a.trace, "#ff9f6a", false);                // with the slab
+}
+
+const C0 = 299792458;
+function update() {
+  const delta = Number(document.getElementById("sl").value) / 500;
+  document.getElementById("lbl").textContent = "1 + " + delta.toFixed(3);
+  const withSlab = run(delta), vac = run(0);
+  draw(withSlab, vac);
+  const dt = dx / C0, omega = 2 * Math.PI * C0 / lam;
+  const phi = (withSlab.centroid - vac.centroid) * dt * omega;
+  const k = 2 * Math.PI / lam, d = cells * dx;
+  const bs = bornSlab(delta, k, d);
+  const meas = Math.hypot(Math.cos(phi) - bs.re, Math.sin(phi) - bs.im);
+  const pred = phi * phi / 2;
+  const agree = Math.abs(meas - pred) / Math.max(pred, 1e-12);
+  document.getElementById("phi").textContent = phi.toFixed(4) + " rad";
+  document.getElementById("meas").textContent = (meas * 100).toFixed(2) + "%";
+  document.getElementById("pred").textContent = (pred * 100).toFixed(2) + "%";
+  document.getElementById("agree").textContent = (agree * 100).toFixed(1) + "%";
+  const vEl = document.getElementById("verdict");
+  vEl.innerHTML = agree < 0.05
+    ? "<span class='ok'>The measurement and the prediction agree.</span> The theory of the failure is right here."
+    : "<span class='warn'>They have parted.</span> &phi;&sup2;/2 is itself a small-angle expansion &mdash; past &phi; &asymp; 1 the prediction of the failure fails too, which is the theory announcing its own limit a second time.";
+  const c = document.getElementById("calls"), why = document.getElementById("callsWhy");
+  if (meas < 0.02) { c.className = "big ok"; c.textContent = "Yes \u2014 invert away."; why.textContent = "Born is wrong by less than 2%. Linearise, back-project, and sleep soundly."; }
+  else if (meas < 0.15) { c.className = "big warn"; c.textContent = "Fraying."; why.textContent = "Born is wrong by " + (meas*100).toFixed(0) + "%. Your reconstruction will show it. Iterate, or lower the contrast."; }
+  else { c.className = "big hot"; c.textContent = "No."; why.textContent = "Born is wrong by " + (meas*100).toFixed(0) + "%. The correction is not a correction any more \u2014 it IS the measurement, and a linear inversion is inventing an object."; }
+}
+document.getElementById("sl").addEventListener("input", update);
+update();
+</script>
+</body>
+</html>

@@ -1,0 +1,35 @@
+MIT License
+
+Copyright (c) 2026 Keith Swerling
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+The physics implemented here is public knowledge and is not claimed by anyone:
+
+  Yee, K.S. (1966), "Numerical solution of initial boundary value problems
+    involving Maxwell's equations in isotropic media" -- the FDTD scheme.
+  Wolf, E. (1969), "Three-dimensional structure determination of semi-transparent
+    objects from holographic data" -- the Fourier Diffraction Theorem.
+  Devaney, A.J. (1982), "A filtered backpropagation algorithm for diffraction
+    tomography" -- the inversion this rests on.
+  Born, M. & Wolf, E., "Principles of Optics" -- the approximation, and its limits.
+
+These are laws and algorithms, not code. The implementation is original and MIT.
