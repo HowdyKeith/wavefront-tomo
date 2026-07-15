@@ -31,10 +31,15 @@
   <p class="sub">Every tomographic reconstruction assumes the wave is barely disturbed by the object. This asks Maxwell.</p>
 
   <div class="panel">
-    <h2>The object, and the wave that does not care what you assumed</h2>
+    <h2>The pulse arriving, with and without the slab</h2>
     <canvas id="cv" width="1720" height="520"></canvas>
-    <p style="margin:12px 0 0">A pulse crosses a slab. The dotted trace is the same pulse with no slab. The gap between
-    them is the phase the wave <em>actually</em> accumulated &mdash; measured, not assumed.</p>
+    <p style="margin:12px 0 0">The field at one probe, over time. Solid crossed the slab; dotted did not.
+    <b id="zoomNote"></b></p>
+    <h2 style="margin-top:18px">The difference between them, which is the entire measurement</h2>
+    <canvas id="cd" width="1720" height="200"></canvas>
+    <p style="margin:12px 0 0">Two curves that overlap perfectly still differ, and this is where. The delay is
+    <b id="delaySteps">&mdash;</b> &mdash; too small to see above, which is exactly why nobody eyeballs this and why
+    the number comes from an energy centroid instead.</p>
   </div>
 
   <div class="panel">
@@ -69,6 +74,7 @@ import { createFdtd1d } from "../src/em/fdtd1d.js";
 import { bornSlab } from "../src/em/born.js";
 
 const cv = document.getElementById("cv"), g = cv.getContext("2d");
+const cd = document.getElementById("cd"), gd = cd.getContext("2d");
 const dx = 0.001, cells = 60, ppw = 40, lam = ppw * dx, N = 1200, A = 300, B = A + cells;
 const src = (t) => { const x = (t - 60) / 18; return Math.exp(-x * x); };
 
@@ -88,27 +94,54 @@ function run(delta) {
   return { centroid: num / den, trace };
 }
 
+// The x axis here is TIME AT ONE PROBE, not space. The first version of this page drew a grey rectangle for "the
+// slab" across it, which was decoration on an axis where the slab does not exist -- it implied you were watching a
+// pulse pass through something. Removed. And the caption promised a visible gap: at 8% contrast the pulse arrives
+// 2.4 steps later out of 1500, which is 0.16% of the width. The measurement is real; the picture could never show
+// it. So: ZOOM to the pulse, and plot the DIFFERENCE underneath, which is where the signal actually lives.
+function window_(tr) {
+  let pk = 0, at = 0;
+  for (let i = 0; i < tr.length; i++) { const v = Math.abs(tr[i]); if (v > pk) { pk = v; at = i; } }
+  return { lo: Math.max(0, at - 90), hi: Math.min(tr.length, at + 90) };
+}
 function draw(a, b) {
   const W = cv.width, H = cv.height;
   g.clearRect(0, 0, W, H);
-  // the slab
-  g.fillStyle = "rgba(255,159,106,.10)";
-  const x0 = 700 / 1500 * W, x1 = 780 / 1500 * W;
-  g.fillRect(x0, 0, x1 - x0, H);
+  const win = window_(b.trace);
+  const n = win.hi - win.lo;
   g.strokeStyle = "#16304d"; g.lineWidth = 2;
   g.beginPath(); g.moveTo(0, H/2); g.lineTo(W, H/2); g.stroke();
-  const plot = (tr, style, dash) => {
-    g.strokeStyle = style; g.lineWidth = dash ? 2 : 3; g.setLineDash(dash ? [7, 7] : []);
+  let mx = 1e-12;
+  for (let i = win.lo; i < win.hi; i++) mx = Math.max(mx, Math.abs(a.trace[i]), Math.abs(b.trace[i]));
+  const plot = (tr, style, dash, wdt) => {
+    g.strokeStyle = style; g.lineWidth = wdt; g.setLineDash(dash ? [8, 8] : []);
     g.beginPath();
-    let mx = 1e-9; for (const v of tr) mx = Math.max(mx, Math.abs(v));
-    for (let i = 0; i < tr.length; i++) {
-      const x = i / tr.length * W, y = H/2 - (tr[i] / mx) * (H * 0.40);
-      i ? g.lineTo(x, y) : g.moveTo(x, y);
+    for (let i = win.lo; i < win.hi; i++) {
+      const x = (i - win.lo) / n * W, y = H/2 - (tr[i] / mx) * (H * 0.40);
+      i === win.lo ? g.moveTo(x, y) : g.lineTo(x, y);
     }
     g.stroke(); g.setLineDash([]);
   };
-  plot(b.trace, "rgba(127,227,196,.55)", true);   // vacuum reference
-  plot(a.trace, "#ff9f6a", false);                // with the slab
+  plot(b.trace, "rgba(127,227,196,.75)", true, 2.5);   // vacuum reference
+  plot(a.trace, "#ff9f6a", false, 3);                  // with the slab
+  document.getElementById("zoomNote").textContent = "Zoomed to " + n + " of 1500 steps \u2014 at full width the two are one line.";
+
+  // the difference: same window, its own scale, because it is ~1000x smaller than the pulse
+  const Wd = cd.width, Hd = cd.height;
+  gd.clearRect(0, 0, Wd, Hd);
+  gd.strokeStyle = "#16304d"; gd.lineWidth = 2;
+  gd.beginPath(); gd.moveTo(0, Hd/2); gd.lineTo(Wd, Hd/2); gd.stroke();
+  let md = 1e-12;
+  for (let i = win.lo; i < win.hi; i++) md = Math.max(md, Math.abs(a.trace[i] - b.trace[i]));
+  gd.strokeStyle = "#ffd27f"; gd.lineWidth = 2.5;
+  gd.beginPath();
+  for (let i = win.lo; i < win.hi; i++) {
+    const x = (i - win.lo) / n * Wd, y = Hd/2 - ((a.trace[i] - b.trace[i]) / md) * (Hd * 0.40);
+    i === win.lo ? gd.moveTo(x, y) : gd.lineTo(x, y);
+  }
+  gd.stroke();
+  gd.fillStyle = "#5b7699"; gd.font = "18px ui-monospace, monospace";
+  gd.fillText("peak difference " + (md / mx * 100).toFixed(2) + "% of the pulse", 14, 26);
 }
 
 const C0 = 299792458;
@@ -119,6 +152,7 @@ function update() {
   draw(withSlab, vac);
   const dt = dx / C0, omega = 2 * Math.PI * C0 / lam;
   const phi = (withSlab.centroid - vac.centroid) * dt * omega;
+  document.getElementById("delaySteps").textContent = (withSlab.centroid - vac.centroid).toFixed(2) + " steps out of 1500";
   const k = 2 * Math.PI / lam, d = cells * dx;
   const bs = bornSlab(delta, k, d);
   const meas = Math.hypot(Math.cos(phi) - bs.re, Math.sin(phi) - bs.im);
